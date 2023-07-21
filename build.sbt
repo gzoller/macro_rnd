@@ -36,6 +36,7 @@ lazy val root = project
     Test / parallelExecution := false,
     libraryDependencies ++= Seq(
       "co.blocke" %% "scala-reflection" % "1.2.0",
+      "co.blocke" %% "scalajack" % "7.0.3",
       "org.scalameta"  %% "munit"                  % "0.7.29" % Test
     )
   )
