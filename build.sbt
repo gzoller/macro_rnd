@@ -27,17 +27,17 @@ lazy val root = project
   .settings(settings)
   .settings(
     name := "reflection_library",
-    Compile / packageBin / mappings += {
-      (baseDirectory.value / "plugin.properties") -> "plugin.properties"
-    },
+    // Compile / packageBin / mappings += {
+    //   (baseDirectory.value / "plugin.properties") -> "plugin.properties"
+    // },
     doc := null,  // disable dottydoc for now
     Compile / doc / sources := Seq(),
     //sources in (Compile, doc) := Seq(),
     Test / parallelExecution := false,
     libraryDependencies ++= Seq(
-      "co.blocke" %% "scala-reflection" % "1.2.0",
-      "co.blocke" %% "scalajack" % "7.0.3",
-      "org.scalameta"  %% "munit"                  % "0.7.29" % Test
+      "co.blocke" %% "scala-reflection" % "new_valueOf_8fa390",//"1.2.0",
+      // "co.blocke" %% "scalajack" % "7.0.3",
+      "org.scalameta"  %% "munit"  % "0.7.29" % Test
     )
   )
 

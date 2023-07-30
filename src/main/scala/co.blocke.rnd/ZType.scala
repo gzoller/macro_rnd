@@ -9,130 +9,122 @@ import java.nio.file.{Files, Path}
 import co.blocke.scala_reflection.RType
 import co.blocke.scala_reflection.info.*
 import co.blocke.scala_reflection.impl.*
+import scala.jdk.CollectionConverters.*
 
 object ZType:
 
-
-  inline def logAST[T](inline expression:T) = ${logASTImpl('expression)}
-  def logASTImpl[T:Type](expression: Expr[T])(using q:Quotes): Expr[T] = {
-    import quotes.reflect.* 
-    val term = expression.asTerm
-    println(s"============ Tree of type ${Type.show} =============")
-    println()
-    println(term.show(using Printer.TreeAnsiCode))
-    println()
-    println(term.show(using Printer.TreeStructure))
-    println()
-    println("=====================================================")
-    expression
+  /** Default implementation of `ToExpr[BigInt]` */
+  given StringBuilderToExpr: ToExpr[StringBuilder] with {
+    def apply(x: StringBuilder)(using Quotes): Expr[StringBuilder] =
+      '{ new StringBuilder( { ${Expr(x.toString)} } ) }
   }
 
-  //------------------------
-  //  <<  MACRO ENTRY >>
-  //------------------------
-  /*
-  inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t, '{RType.of[T]}) }
+  inline def toJson[T](t: T): String = ${ toJsonImpl2[T]('t, '{RType.of[T]}) }
 
-  // primordial toJson.  Gets RType using scala-reflection, then returns
-  // list of field names for the given case class
-  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType])(using q:Quotes): Expr[String] =
+  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType])(using q:Quotes): Expr[String] = {
     import quotes.reflect.* 
 
     println("HEY In compiler!")
 
-    inline def later[U: Type](f: () => Expr[U]): Expr[() => U] = '{ () => ${ f() } }
+    // inline def later[T: Type, U: Type](f: Expr[T] => Expr[U]): Expr[T => U] = '{ (x: T) => ${ f('x) } }
+    inline def appendStr(f: (Expr[StringBuilder]) => Expr[StringBuilder]): Expr[(StringBuilder) => StringBuilder] = 
+      '{ (sb: StringBuilder) => ${ f('sb) } }
 
-    val runit = later( () => '{
-      val sb = new StringBuilder("{")
-      $r.asInstanceOf[ClassInfo].fields.map{f =>
-        val f2 = f.asInstanceOf[ScalaFieldInfo]
-        sb.append(s"\"${f2.name}\":")
-        f2.fieldType match {
-          case PrimitiveType.Scala_String => 
-            sb.append('\"')
-
-            // How can I generate the macro equivalent of:  $t.$f2.name (accessor)?
-            // The f2.valueOf works--but wondering if there may be a more performant way...
-            sb.append(f2.valueOf(${t}).toString)
-            sb.append('\"')
-
-          case c:CollectionRType =>
-            sb.append('[')
-            f2.valueOf(${t}).asInstanceOf[List[_]].map{item => 
-              sb.append(item.toString)
-              sb.append(',')
-            }
-            sb.setCharAt(sb.length()-1,']')
-          case _ =>
-            sb.append(f2.valueOf(${t}).toString)
+    RType.unwindType(q)(TypeRepr.of[T]) match {
+      case c: ClassInfo =>
+        // ==== Phase 1
+        val stmts = c.fields.toList.map{ f =>
+          val theName = Expr(f.name)
+          val theValue = f.asInstanceOf[ScalaFieldInfo].resolve(t)
+          val kind = Expr(f.fieldType)
+          appendStr( (xsb: Expr[StringBuilder]) => '{ 
+            def toJson( sb: StringBuilder, rtype: RType, value: Any ): StringBuilder = 
+              rtype match {
+                case PrimitiveType.Scala_String => 
+                  sb.append('"')
+                  sb.append(value.toString)
+                  sb.append('"')
+                case c:CollectionRType =>
+                  sb.append('[')
+                  value.asInstanceOf[List[_]].map{item => 
+                    toJson(sb, c.elementType, item)
+                    sb.append(',')
+                  }
+                  sb.setCharAt(sb.length()-1,']')
+                case _ =>
+                  sb.append(value.toString)
+              }
+            val name = ${theName}
+            val value = ${theValue}
+            $xsb.append(s"\"$name\":")
+            toJson( $xsb, $kind, value )
+            $xsb.append(s",")
+          } )
         }
-        sb.append(",")
-        }
-      sb.setCharAt(sb.length()-1,'}')
-      sb.toString
-    })
-    '{$runit()}
-    */
+        val sb = Expr(new StringBuilder("{"))
+        val y = stmts.foldLeft(sb)((b:Expr[StringBuilder], fn: Expr[StringBuilder => StringBuilder]) => '{$fn($b)} )
+        '{ ${y}.setCharAt(${y}.length()-1,'}').toString}
 
+      case _ => 
+        Expr("unknown")
+      }
+  
+  }
 
-  inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t, '{RType.of[T]}) }
-
-  // primordial toJson.  Gets RType using scala-reflection, then returns
-  // list of field names for the given case class
-  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType])(using q:Quotes): Expr[String] =
+  def toJsonImpl2[T:Type](t: Expr[T], r: Expr[RType])(using q:Quotes): Expr[String] = {
     import quotes.reflect.* 
 
     println("HEY In compiler!")
 
-    val rtype = RType.unwindType(q)(TypeRepr.of[T])
+    // inline def later[T: Type, U: Type](f: Expr[T] => Expr[U]): Expr[T => U] = '{ (x: T) => ${ f('x) } }
+    inline def appendStr(f: (Expr[StringBuilder]) => Expr[StringBuilder]): Expr[(StringBuilder) => StringBuilder] = 
+      '{ (sb: StringBuilder) => ${ f('sb) } }
 
-    inline def later[U: Type](f: () => Expr[U]): Expr[() => U] = '{ () => ${ f() } }
+    def renderJsonFn(rt: RType): Expr[Any => String] = 
+      rt match {
+        case PrimitiveType.Scala_String => 
+          '{(a:Any) => "\""+a.toString+"\""}
+        // case c:CollectionRType =>
+        //   sb.append('[')
+        //   value.asInstanceOf[List[_]].map{item => 
+        //     toJson(sb, c.elementType, item)
+        //     sb.append(',')
+        //   }
+        //   sb.setCharAt(sb.length()-1,']')
+        case _ =>
+          '{(a:Any) => a.toString}
 
-    def printAllElements(list : List[Expr[Any]])(using Quotes) : Expr[String] = list match {
-      case head :: other => '{ ${head}.toString + " :: " + ${ printAllElements(other)} }
-      case _ => '{""}
-    }
-    // Try to get value
-    val accessors = rtype.asInstanceOf[ClassInfo].fields.map( f =>
-      Select.unique(t.asTerm, f.name).asExpr
-    ).toList
+      }
 
-    val foo = printAllElements(accessors)
-    foo
-
-    /*
-    val runit = later( () => '{
-      val sb = new StringBuilder("{")
-      $r.asInstanceOf[ClassInfo].fields.map{f =>
-        val f2 = f.asInstanceOf[ScalaFieldInfo]
-        sb.append(s"\"${f2.name}\":")
-        f2.fieldType match {
-          case PrimitiveType.Scala_String => 
-            sb.append('\"')
-
-            // val n = "toString"
-            // val g = ${Select.unique(t.asInstanceOf[Expr[Object]].asTerm, n).appliedToNone.asExprOf[String]}
-            // sb.append( g )
-
-            // How can I generate the macro equivalent of:  $t.$f2.name (accessor)?
-            // The f2.valueOf works--but wondering if there may be a more performant way...
-            sb.append(f2.valueOf(${t}).toString)
-            sb.append('\"')
-
-          case c:CollectionRType =>
-            sb.append('[')
-            f2.valueOf(${t}).asInstanceOf[List[_]].map{item => 
-              sb.append(item.toString)
-              sb.append(',')
-            }
-            sb.setCharAt(sb.length()-1,']')
-          case _ =>
-            sb.append(f2.valueOf(${t}).toString)
+    RType.unwindType(q)(TypeRepr.of[T]) match {
+      case c: ClassInfo =>
+        val stmts = c.fields.toList.map{ f =>
+          val key = Expr(s"\"${f.name}\":")
+          val theValue = f.asInstanceOf[ScalaFieldInfo].resolve(t)
+          f.fieldType match {
+            case PrimitiveType.Scala_String => 
+              appendStr( (xsb: Expr[StringBuilder]) => '{ val value = ${theValue}; $xsb.append(s"\"$value\",")})
+            case c: CollectionRType =>
+              val fn = renderJsonFn(c.elementType)
+              appendStr( (xsb: Expr[StringBuilder]) => '{ 
+                val value = ${theValue}; 
+                $xsb.append('[')
+                value.asInstanceOf[List[_]].map{item => 
+                  $xsb.append($fn(item))
+                  $xsb.append(',')
+                }
+                $xsb.setCharAt($xsb.length()-1,']')
+              })
+            case _ =>
+              appendStr( (xsb: Expr[StringBuilder]) => '{ val value = ${theValue}; $xsb.append(s"$value,")})
+          }
         }
-        sb.append(",")
-        }
-      sb.setCharAt(sb.length()-1,'}')
-      sb.toString
-    })
-    '{$runit()}
-*/
+        val sb = Expr(new StringBuilder("{"))
+        val y = stmts.foldLeft(sb)((b:Expr[StringBuilder], fn: Expr[StringBuilder => StringBuilder]) => '{$fn($b)} )
+        '{ ${y}.setCharAt(${y}.length()-1,'}').toString}
+
+      case _ => 
+        Expr("unknown")
+      }
+  
+  }
