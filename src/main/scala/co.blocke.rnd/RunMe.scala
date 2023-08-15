@@ -3,10 +3,12 @@ import co.blocke.scala_reflection.RType
 import co.blocke.scala_reflection.info.{ClassInfo,ScalaFieldInfo}
 
 case class Person(name:String, age: Int, interests: List[String])
+case class Person2(name:String, age: Int, interests: List[List[Int]])
 
 object RunMe extends App:
 
   val person = Person("Greg",57,List("A","B","C"))
+  // val person = Person2("Greg",57,List(List(1,2,3),List(4,5,6),List(7,8,9)))
 
   println("=== Using macro ===")
   println(co.blocke.scala_reflection.ZType.toJson(person))

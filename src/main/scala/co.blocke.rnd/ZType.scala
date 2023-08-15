@@ -31,57 +31,44 @@ object ZType:
     inline def appendStr(f: (Expr[StringBuilder]) => Expr[StringBuilder]): Expr[(StringBuilder) => StringBuilder] = 
       '{ (sb: StringBuilder) => ${ f('sb) } }
 
-    inline def renderFn(f: (Expr[Any], Expr[StringBuilder], Expr[Option[RType]]) => Expr[StringBuilder]): Expr[(Any, StringBuilder, Option[RType]) => StringBuilder] = 
-      '{ (value: Any, sb: StringBuilder, subtype: Option[RType]) => ${ f('value, 'sb, 'subtype) } }
-
-    def renderJsonFn(rt: RType): Expr[Any => String] = 
+    // Given some value, render the Json string
+    def renderJsonFn(rt: RType): Expr[(Any,StringBuilder) => StringBuilder] = 
       rt match {
         case PrimitiveType.Scala_String => 
-          '{(a:Any) => "\""+a.toString+"\""}
-        // case c:CollectionRType =>
-        //   elementFn = renderJsonFn(c.elementType)
-        //   '{(a:Any) => "["+a.toString+"]"}
-        //   sb.append('[')
-        //   value.asInstanceOf[List[_]].map{item => 
-        //     toJson(sb, c.elementType, item)
-        //     sb.append(',')
-        //   }
-        //   sb.setCharAt(sb.length()-1,']')
+          '{(a:Any, sb:StringBuilder) => 
+            sb.append('"')
+            sb.append(a.toString)
+            sb.append('"')
+          }
+        case c:CollectionRType =>
+          val elementFn = renderJsonFn(c.elementType)
+          '{(a:Any, sb:StringBuilder) => 
+            sb.append('[')
+            a.asInstanceOf[List[_]].map{item => 
+              $elementFn(item,sb)
+              sb.append(',')
+            }
+            sb.setCharAt(sb.length()-1,']')
+          }
         case _ =>
-          '{(a:Any) => a.toString}
-
+          '{(a:Any, sb:StringBuilder) => sb.append(a.toString)}
       }
 
     RType.unwindType(q)(TypeRepr.of[T]) match {
       case c: ClassInfo =>
-        val stmts = c.fields.toList.map{ f =>
+        val stmts = c.fields.toList.map{ f =>  // List[Expr[StringBuilder => StringBuilder]]
           val key = Expr(s"\"${f.name}\":")
           val theValue = f.asInstanceOf[ScalaFieldInfo].resolve(t)
-          f.fieldType match {
-            case PrimitiveType.Scala_String => 
-              appendStr( (xsb: Expr[StringBuilder]) => '{ val dakey = ${key}; val value = ${theValue}; $xsb.append(s"$dakey\"$value\",")})
-            case c: CollectionRType =>
-              val fn = renderJsonFn(c.elementType)
-              appendStr( (xsb: Expr[StringBuilder]) => '{ 
-                val dakey = ${key}
-                val value = ${theValue}
-                $xsb.append(dakey)
-                $xsb.append('[')
-                value.asInstanceOf[List[_]].map{ item => 
-                  $xsb.append($fn(item))
-                  $xsb.append(',')
-                }
-                $xsb.setCharAt($xsb.length()-1,']')
-                $xsb.append(',')
-                $xsb
-              })
-            case _ =>
-              appendStr( (xsb: Expr[StringBuilder]) => '{ val dakey = ${key}; val value = ${theValue}; $xsb.append(s"$dakey$value,")})
-          }
+          val fieldRenderFn = renderJsonFn(f.fieldType) // Expr[(Any, StringBuilder) => StringBuilder
+          '{(sb: StringBuilder) =>
+            sb.append($key)
+            $fieldRenderFn($theValue, sb)
+            sb.append(',')
+           }
         }
         val sb = Expr(new StringBuilder("{"))
         val y = stmts.foldLeft(sb)((b:Expr[StringBuilder], fn: Expr[StringBuilder => StringBuilder]) => '{$fn($b)} )
-        '{ val gen = ${y}; gen.setCharAt(gen.length()-1,'}'); gen.toString }
+        '{ val gen = ${y}; gen.setCharAt(gen.length()-1,'}'); gen.toString } // wierd 'gen' stuff here to avoid double-calling maco!
 
       case _ => 
         Expr("unknown")
