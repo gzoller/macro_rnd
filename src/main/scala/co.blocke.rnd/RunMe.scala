@@ -17,6 +17,7 @@ object RunMe extends App:
     co.blocke.scala_reflection.ZType.toJson(person)
   println("Macro-based: "+(System.currentTimeMillis() - now2))
 
+  /*
   val now3 = System.currentTimeMillis()
   val sb = new StringBuilder()
   for(i<-1 to 1000000)
@@ -39,6 +40,7 @@ object RunMe extends App:
   println("Baseline: "+(System.currentTimeMillis() - now3))
 
   // co.blocke.scala_reflection.ZType.logAST(person)
+  */
   
   println("Done")
 
