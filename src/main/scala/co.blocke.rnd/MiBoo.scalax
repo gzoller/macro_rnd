@@ -1,0 +1,42 @@
+package co.blocke.rnd
+
+import scala.quoted.*
+import quoted.Quotes
+
+//  Desired recursive effect:
+//
+//  println(miBoo(3)) produces:
+//
+//  Number 3 is added.
+//  Number 2 is added.
+//  Number 1 is added.
+
+object Boo:
+
+  given StringBuilderToExpr: ToExpr[StringBuilder] with {
+    def apply(x: StringBuilder)(using Quotes): Expr[StringBuilder] =
+      '{ new StringBuilder( { ${Expr(x.toString)} } ) }
+  }
+
+  inline def miBoo(n: Int): String = ${ miBooImpl('n) }
+
+  def miBooImpl(n: Expr[Int])(using quotes:Quotes): Expr[String] = {
+    import quotes.reflect.* 
+
+    // def mkFn(): Expr[(Int,StringBuilder)=>StringBuilder] = {
+    //     '{(i:Int, sb:StringBuilder) => 
+    //       val b = sb.append(s"Number $i is added.\n")
+    //       if i > 0 then
+    //         val fn:(Int,StringBuilder)=>StringBuilder = ???  // How can I make this recursive call to mkFn?
+    //         val z = i-1
+    //         fn(z,b)
+    //       b
+    //     }
+    // }
+
+    // val fn = mkFn()
+    // val sb = Expr(new StringBuilder())
+    // '{ 
+    //   $fn(5, $sb).toString 
+    // }
+  }

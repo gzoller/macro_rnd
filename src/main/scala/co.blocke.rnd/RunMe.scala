@@ -4,20 +4,24 @@ import co.blocke.scala_reflection.info.{ClassInfo,ScalaFieldInfo}
 
 case class Person(name:String, age: Int, interests: List[String])
 case class Person2(name:String, age: Int, interests: List[List[Int]])
+case class SimplePerson(name: String, age:Int)
 
 object RunMe extends App:
 
-  val person = Person("Greg",57,List("A","B","C"))
+  // println(co.blocke.rnd.Boo.miBoo(5))
+
+  val person = SimplePerson("Greg",57)
+  // val person = Person("Greg",57,List("A","B","C"))
   // val person = Person2("Greg",57,List(List(1,2,3),List(4,5,6),List(7,8,9)))
 
   println("=== Using macro ===")
   println(co.blocke.scala_reflection.ZType.toJson(person))
   // println(sj.render(person))
 
-  val now2 = System.currentTimeMillis()
-  for(i<-1 to 1000000)
-    co.blocke.scala_reflection.ZType.toJson(person)
-  println("Macro-based: "+(System.currentTimeMillis() - now2))
+  // val now2 = System.currentTimeMillis()
+  // for(i<-1 to 1000000)
+  //   co.blocke.scala_reflection.ZType.toJson(person)
+  // println("Macro-based: "+(System.currentTimeMillis() - now2))
 
   /*
   val now3 = System.currentTimeMillis()
