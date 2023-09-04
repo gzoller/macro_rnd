@@ -1,0 +1,63 @@
+package co.blocke.scala_reflection
+
+import scala.collection.mutable
+import scala.reflect.ClassTag
+import co.blocke.scala_reflection._
+import co.blocke.scala_reflection.impl.Clazzes.*
+import co.blocke.scala_reflection.info.*
+import co.blocke.scala_reflection.impl.*
+
+
+trait TypeAdapter[T] {
+  self =>
+
+  type tpe = T
+
+  val info: RType
+
+  inline def castAndWrite( v: Any ): Unit = 
+    val z = v.asInstanceOf[tpe]
+    println("Z: "+z+"  :: "+z.getClass.getName)
+}
+
+
+object TAFactory:
+  def typeAdapterOf(concreteType: RType): TypeAdapter[_] =
+    concreteType match {
+    }
+    typeEntries.computeIfAbsent(concreteType, ConcreteTypeEntryFactory).typeAdapter
+
+  inline def typeAdapterOf[T]: TypeAdapter[T] =
+    typeAdapterOf(RType.of[T]).asInstanceOf[TypeAdapter[T]]
+
+trait TypeAdapterFactory:
+  def matches(concrete: RType): Boolean
+  def makeTypeAdapter(concrete: RType): TypeAdapter[_]
+
+trait ScalarTypeAdapter[T] extends TypeAdapter[T] 
+
+object StringTypeAdapterFactory extends TypeAdapterFactory with TypeAdapter[String] with ScalarTypeAdapter[String]:
+  def matches(concrete: RType): Boolean = concrete.infoClass == PrimitiveType.Scala_String.infoClass
+  def makeTypeAdapter(concrete: RType): TypeAdapter[String] = this
+
+  override def isStringish: Boolean = true
+  val info = RType.of[String]
+
+
+
+
+case class ClassFieldMember[OWNER,T](
+  info:                               FieldInfo,
+  valueTypeAdapter:                   TypeAdapter[T],
+  outerClass:                         java.lang.Class[OWNER]  // class that "owns" this field
+):
+  def name: String = info.name
+
+
+trait ClassTypeAdapterBase[T] extends TypeAdapter[T]:
+  val info:               RType
+  val fieldMembersByName: Map[String, ClassFieldMember[_,_]]
+    
+trait ScalaClassTypeAdapter[T] extends ClassTypeAdapterBase[T]:
+  val typeMembersByName:  Map[String, TypeMemberInfo]
+  private val classInfo = info.asInstanceOf[ClassInfo]

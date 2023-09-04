@@ -1,18 +1,18 @@
 package co.blocke.rnd
-import co.blocke.scala_reflection.RType
-import co.blocke.scala_reflection.info.{ClassInfo,ScalaFieldInfo}
+import co.blocke.scala_reflection.*
 
-case class Person(name:String, age: Int, interests: List[String])
-case class Person2(name:String, age: Int, interests: List[List[Int]])
-case class SimplePerson(name: String, age:Int)
+// import co.blocke.scala_reflection.info.{ClassInfo,ScalaFieldInfo}
+
+// case class Person(name:String, age: Int, interests: List[String])
+// case class Person2(name:String, age: Int, interests: List[List[Int]])
+// case class SimplePerson(name: String, age:Int)
 
 object RunMe extends App:
 
-  // println(co.blocke.rnd.Boo.miBoo(5))
+  val person = Person("Greg",57,Thing(25))
 
-  val person = SimplePerson("Greg",57)
-  // val person = Person("Greg",57,List("A","B","C"))
-  // val person = Person2("Greg",57,List(List(1,2,3),List(4,5,6),List(7,8,9)))
+  // val p = RType.of[co.blocke.scala_reflection.Thing[List[Person]]]
+  // println("RType: "+p)
 
   println("=== Using macro ===")
   println(co.blocke.scala_reflection.ZType.toJson(person))

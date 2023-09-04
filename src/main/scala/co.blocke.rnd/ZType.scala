@@ -7,8 +7,8 @@ import java.io.*
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Path}
 import co.blocke.scala_reflection.RType
-import co.blocke.scala_reflection.info.*
-import co.blocke.scala_reflection.impl.*
+// import co.blocke.scala_reflection.info.*
+// import co.blocke.scala_reflection.impl.*
 import scala.jdk.CollectionConverters.*
 
 object ZType:
@@ -19,6 +19,11 @@ object ZType:
       '{ new StringBuilder( { ${Expr(x.toString)} } ) }
   }
 
+  // given RTypeToExpr[T: Type: ToExpr]: ToExpr[RType[T]] with
+  //   def apply(rt: RType[T])(using Quotes): Expr[RType[T]] = 
+  //     import quotes.reflect.*
+  //     '{ rt }
+
   given ToExpr[Any] with {                               
     def apply(x: Any)(using Quotes) = {
       import quotes.reflect._
@@ -26,16 +31,18 @@ object ZType:
     }
   }
 
-  given ToExpr[Quotes] with {                               
-    def apply(x: Quotes)(using q:Quotes) = {
-      import q.reflect._
-      Ref(defn.AnyClass).appliedToType(TypeRepr.typeConstructorOf(x.getClass)).asExpr.asInstanceOf[Expr[Quotes]]
-    }
-  }
+
+  given RTypeToExpr[T: Type: ToExpr]: ToExpr[RType[T]] with
+    def apply(rt: RType[T])(using Quotes): Expr[RType[T]] = rt match 
+      case r: RType[T] => Expr(r)
+
+      // case s: StringRType => Expr(s.asInstanceOf[RType[T]])
+      // case i: IntRType => Expr(i.asInstanceOf[RType[T]])
+      // case c: ClassRType[T] => Expr(c.asInstanceOf[RType[T]])
 
   inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t, '{RType.of[T]}) }
 
-  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType])(using quotes:Quotes): Expr[String] = {
+  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType[T]])(using quotes:Quotes): Expr[String] = {
     import quotes.reflect.* 
 
     println("HEY In compiler!")
@@ -43,79 +50,45 @@ object ZType:
     // def fooFn(): Expr[(Any,StringBuilder) => StringBuilder] = 
     // // quotes visible here
 
-    // val qq = Expr(quotes) //wrap quotes in Expr to access inside Expr below
-    // ‘{(a:Any, sb:StringBuilder) =>
-    //     implicit val qt:Quotes = $qq
-    //   	// use qt here for something that needs a Quotes instance
-    //     sb.apply(“ok”)
-    //  }
-
-/*
-def exprOfOption[T: Type](x: Expr[Option[T]])(using Quotes): Option[Expr[T]] =
-  x match
-    case '{ Some($x: T) } => Some(x) // x: Expr[T]
-                // ^^^ type ascription with generic type T
-*/
-
     // Given some value, render the Json string
-    // def renderJsonFn(rt: RType): Expr[(Any,StringBuilder) => (Quotes) => StringBuilder] = 
-    // def renderJsonFn[T: Type](rt: RType): Expr[(T,StringBuilder) => StringBuilder] = 
-    def renderJsonFn[T: Type](rt: RType): Expr[(T,StringBuilder) => StringBuilder] = 
+    // def renderJsonFn[T:Type](rt: RType): Expr[(T,StringBuilder) => StringBuilder] = 
+    def renderJsonFn[Z](rt: RType[Z])(using Type[Z]): Expr[(Any,StringBuilder) => StringBuilder] = 
       rt match {
-        case PrimitiveType.Scala_String => 
-          // '{(a:Any, sb:StringBuilder) => (qq:Quotes) => 
-          '{(a:T, sb:StringBuilder) =>
+        case _: StringRType => 
+          '{(a:Any, sb:StringBuilder) =>
             sb.append('"')
             sb.append(a.toString)
             sb.append('"')
           }
 
-        case classInfo: ClassInfo =>
-          val ciExp = Expr(rt)
-          val fieldFns = classInfo.fields.toList.map(f => renderJsonFn(f.fieldType))
-          val zipped = fieldFns.zip(classInfo.fields)
-
-          '{(a:T, sb:StringBuilder) => 
+        case classRType: ClassRType[Z] =>
+          // println("HERE: "+classRType)
+          //  def toType(quotes: Quotes): quotes.reflect.TypeRepr  = quotes.reflect.TypeRepr.typeConstructorOf(infoClass)
+          val zipped = classRType.fields.map{ f => 
+            val z = quotes.reflect.TypeRepr.typeConstructorOf(f.fieldType.infoClass)
+            val v = z.asType.asInstanceOf[Type[f.fieldType.T]]
+            given ft: Type[f.fieldType.T] = v  //Type.of[f.fieldType.T]
+            (renderJsonFn(f.fieldType)(using ft), f) 
+          }
+          '{(a:Any, sb:StringBuilder) => 
+            val b = a.asInstanceOf[Z]
             sb.append('{')
             val stuff = ${
               val statements = zipped.map{ case (fn, field) => 
-                val scalaField = field.asInstanceOf[ScalaFieldInfo]
                 '{ 
-                  val fieldValue = ${ Select.unique('{ a }.asTerm, scalaField.name).asExpr }
-                  ${Expr(scalaField.name)} + ":" + fieldValue.toString
+                  sb.append(${Expr(field.name)})
+                  sb.append(':')
+                  val fieldValue = ${ 
+                    Select.unique('{ b }.asTerm, field.name).asExpr
+                  }
+                  $fn(fieldValue, sb)
+                  sb.append(',')
                 }
               }
               Expr.ofList(statements)
-              // Block(statements.init, statements.last) // blocks may not be empty, and take a list of statements, followed by a final expression, I looked up the API
-            }
-            sb.append(stuff.mkString(","))
-            sb.append('}')
-          }
-/*
-            sb.append('{')
-
-            // implicit val qt:Quotes = $qq
-            val classInfo = $rtExp.asInstanceOf[ClassInfo]
-            val classInstanceValue = '{a}.asTerm //Expr(a)
-
-            // resolve() here calls Select.unique(thing, "foom").asExpr
-            // val fieldValues = classInfo.fields.map{ _.asInstanceOf[ScalaFieldInfo].resolve(thing) }.toList
-            // println("VALUES : "+fieldValues)
-
-            val zipped = ${fieldFns}.zip(classInfo.fields)
-            //val ssb = Expr(StringBuilder)
-            zipped.map{ case (fn,v) =>
-              sb.append('"')
-              sb.append(v.name)
-              sb.append("\":")
-              //def apply(v1: Any, v2: StringBuilder): StringBuilder
-              val fieldInstanceValue = Select.unique(classInstanceValue, v.name) // equiv of person.name
-              fn(fieldInstanceValue, sb)
-              sb.append(',')
             }
             sb.setCharAt(sb.length()-1,'}')
-           }
-            */
+          }
 
             /*
         case c:CollectionRType =>
@@ -132,13 +105,13 @@ def exprOfOption[T: Type](x: Expr[Option[T]])(using Quotes): Option[Expr[T]] =
           */
 
         case _ =>
-//          '{(a:Any, sb:StringBuilder) => (qq:Quotes) => 
-          '{(a:T, sb:StringBuilder) => 
+          '{(a:Any, sb:StringBuilder) => 
             sb.append(a.toString)
           }
       }
 
-    val renderMe = renderJsonFn[T](RType.unwindType(quotes)(TypeRepr.of[T]))
+    // val renderMe = renderJsonFn(RType.unwindType(quotes)(TypeRepr.of[T]))
+    val renderMe = renderJsonFn(RType.of[T])
     val sb = Expr(new StringBuilder())
     '{ 
       // val s = scala.Symbol($t.getClass.getName)

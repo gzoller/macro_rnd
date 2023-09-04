@@ -35,7 +35,8 @@ lazy val root = project
     //sources in (Compile, doc) := Seq(),
     Test / parallelExecution := false,
     libraryDependencies ++= Seq(
-      "co.blocke" %% "scala-reflection" % "new_valueOf_bd41b4",//"1.2.0",
+      // "co.blocke" %% "scala-reflection" % "new_valueOf_bd41b4",//"1.2.0",
+      "io.github.kitlangton" %% "quotidian" % "0.0.6",
       // "co.blocke" %% "scalajack" % "7.0.3",
       "org.scalameta"  %% "munit"  % "0.7.29" % Test
     )
