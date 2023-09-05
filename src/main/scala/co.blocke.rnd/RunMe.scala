@@ -9,7 +9,7 @@ import co.blocke.scala_reflection.*
 
 object RunMe extends App:
 
-  val person = Person("Greg",57,Thing(25))
+  val person = Person("Greg",57,Thing(25,"wow"))
 
   // val p = RType.of[co.blocke.scala_reflection.Thing[List[Person]]]
   // println("RType: "+p)
@@ -18,12 +18,12 @@ object RunMe extends App:
   println(co.blocke.scala_reflection.ZType.toJson(person))
   // println(sj.render(person))
 
-  // val now2 = System.currentTimeMillis()
-  // for(i<-1 to 1000000)
-  //   co.blocke.scala_reflection.ZType.toJson(person)
-  // println("Macro-based: "+(System.currentTimeMillis() - now2))
-
   /*
+  val now2 = System.currentTimeMillis()
+  for(i<-1 to 1000000)
+    co.blocke.scala_reflection.ZType.toJson(person)
+  println("Macro-based: "+(System.currentTimeMillis() - now2))
+
   val now3 = System.currentTimeMillis()
   val sb = new StringBuilder()
   for(i<-1 to 1000000)
@@ -34,18 +34,16 @@ object RunMe extends App:
     sb.append("\"age\":")
     sb.append(person.age.toString)
     sb.append(',')
-    sb.append("\"interests\":")
-    sb.append('[')
-    person.interests.map{i => 
-      sb.append('\"')
-      sb.append(i)
-      sb.append("\",")
-    }
-    sb.setCharAt(sb.length()-1,']')
+    sb.append("\"thing\":")
+    sb.append('{')
+    sb.append("\"a\":")
+    sb.append(person.thing.a)
+    sb.append(',')
+    sb.append("\"b\":")
+    sb.append(s"\"${person.thing.b}\"")
+    sb.append('}')
     sb.append('}')
   println("Baseline: "+(System.currentTimeMillis() - now3))
-
-  // co.blocke.scala_reflection.ZType.logAST(person)
   */
   
   println("Done")

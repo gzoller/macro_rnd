@@ -3,7 +3,7 @@ package co.blocke.scala_reflection
 import scala.quoted.*
 
 case class Person(name: String, age: Int, thing: Thing)
-case class Thing( a: Int )
+case class Thing( a: Int, b: String )
 
 // object Liftables:
 
