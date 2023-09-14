@@ -15,6 +15,7 @@ object RunMe extends App:
   // println("RType: "+p)
 
   println("=== Using macro ===")
+  // println(RType.of[Person])
   println(co.blocke.scala_reflection.ZType.toJson(person))
   // println(sj.render(person))
 

@@ -7,6 +7,7 @@ import java.io.*
 import java.nio.ByteBuffer
 import java.nio.file.{Files, Path}
 import co.blocke.scala_reflection.RType
+import co.blocke.scala_reflection.rtypes.*
 import scala.jdk.CollectionConverters.*
 
 /*
@@ -28,19 +29,20 @@ object ZType:
   }
 
 
-  given RTypeToExpr[T: Type: ToExpr]: ToExpr[RType[T]] with
-    def apply(rt: RType[T])(using Quotes): Expr[RType[T]] = rt match 
-      case r: RType[T] => Expr(r)
+  // given RTypeToExpr[T: Type: ToExpr]: ToExpr[RType[T]] with
+  //   def apply(rt: RType[T])(using Quotes): Expr[RType[T]] = rt match 
+  //     case r: RType[T] => Expr(r)
 
-  inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t, '{RType.of[T]}) }
+  // inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t, '{RType.of[T]}) }
 
-  def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType[T]])(using quotes:Quotes): Expr[String] = {
+  // def toJsonImpl[T:Type](t: Expr[T], r: Expr[RType[T]])(using quotes:Quotes): Expr[String] = {
+  inline def toJson[T](t: T): String = ${ toJsonImpl[T]('t) }
+
+  def toJsonImpl[T:Type](t: Expr[T])(using quotes:Quotes): Expr[String] = {
     import quotes.reflect.* 
 
-    println("HEY In compiler!")
-
     // Given some value, render the Json string
-    def renderJsonFn[Z](rt: RType[Z])(using Type[Z]): Expr[(Any,StringBuilder) => StringBuilder] = 
+    def renderJsonFn[Z](rt: RType[Z])(using Type[Z]): Expr[(Any,StringBuilder) => StringBuilder] = {
       rt match {
         case _: StringRType => 
           '{(a:Any, sb:StringBuilder) =>
@@ -52,7 +54,7 @@ object ZType:
         case classRType: ClassRType[Z] =>
           val zipped = classRType.fields.map{ f => 
             // Gymnastis to get Type of each field from class->TypeRepr->Type
-            (renderJsonFn(f.fieldType)(using f.fieldType.toType(quotes)), f) 
+            (renderJsonFn(f.fieldType)(using RType.getTypeFor(f.fieldType)), f) 
           }
           '{(a:Any, sb:StringBuilder) => 
             val typedA = a.asInstanceOf[Z]
@@ -93,9 +95,12 @@ object ZType:
             sb.append(a.toString)
           }
       }
+    }
 
-    // val renderMe = renderJsonFn(RType.unwindType(quotes)(TypeRepr.of[T]))
-    val renderMe = renderJsonFn(RType.of[T])
+    println("HEY In compiler!")
+    // '{"foo"}
+
+    val renderMe = renderJsonFn(RType.unwindType(quotes)(TypeRepr.of[T]))
     val sb = Expr(new StringBuilder())
     '{ $renderMe($t, $sb).toString }
   }
@@ -114,4 +119,3 @@ object ZType:
           Basically how to generate a new method.
           Comes from: dotty/tests/run-macros/annot-mod-class-data/Macro_1.scala
   */
- 
